@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue May 18 11:02:04 2021
+Created on Tue May 18 22:59:12 2021
 
 @author: Harold
 """
+
 import numpy as np
 
-
-
+codebook = {0:np.array((1,1))}
 
 def main():
     input= 'asda@¦#°#@°@§#@#§hfasugvbvavàé¨é'
@@ -76,34 +76,3 @@ def decode(input):
             
     return str(bytearray(output),'utf-8')
         
-
-"""
-WHAT IS BELOW IS NOT INTERESTING BUT KEPT JUST IN CASE
-"""
-
-
-def string2real(input):
-    print('\n@@@@@@@@@@@@@@@@@@@@@@@ENCODING@@@@@@@@@@@@@@@@@@@@@@@\n')
-    
-    print('starting string :',input,'\n')
-    
-    arr = np.array(bytearray(input, 'utf-8')).astype('float64')
-    print(arr)
-    arr = (arr -128)
-    print(arr)
-    arr = arr/255
-    print(arr)
-    return arr
-
-    
-
-def real2string(arr):
-    print('\n@@@@@@@@@@@@@@@@@@@@@@@DECODING@@@@@@@@@@@@@@@@@@@@@@@\n')
-    arr = ((arr*255) + 128).astype('byte')
-    print(arr)
-    arr = bytearray(arr)
-    print(arr,'\n')
-    string= str(arr,'utf-8')
-    print('result string:',string)
-
-main()
