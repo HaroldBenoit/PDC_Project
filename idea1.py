@@ -9,13 +9,13 @@ import numpy as np
 
 
 def main():
-    code_length = 90
+    code_length = 100
     c_0 = [1 for x in range(code_length)]
     c_1 = [-1 for x in range(code_length)]
     
     codebook = {0:c_0, 1:c_1}
     
-    input= 'asda@¦#°#@°@§#@#§hfasugvbvavàé¨é'
+    input= '󕘆򋃭񜘽𭡥߂⑌Ю빰OЗ򽰪܏݊扥Ê󣧰󈉊Ο𕐇坲򩒇󜹵񔭕ߒВ~񃚙G񺷩檏T�U␛񥋽񇰦b񴓔ͪ'
     
     encoded = encode(input,codebook)
     encoded_loss = channel(encoded)
@@ -101,11 +101,11 @@ def get_byte_from_arr(arr):
                      
 """
 predict the erased index 
-algo: argmin_{j}{sum over |Yi| where i is part of the group (Z/3Z) + j }
+algo: argmin_{j}{sum over |Yi^2 where i is part of the group (Z/3Z) + j }
 """
 
 def predict_erased(input):
-    input = np.absolute(input)
+    input = input*input
     min = np.inf
     min_index= 0
     
@@ -115,6 +115,25 @@ def predict_erased(input):
             min = sum
             min_index = i
 
+    return min_index
+
+"""
+This function does minimum distance-decoding of the given array with the given codebook
+
+"""
+
+def codeword_prediction(arr,codebook):
+    min = np.inf
+    min_index= 0
+    
+    for i in range(len(codebook.keys())):
+        sub = codebook[i] - arr
+        dist = np.dot(sub,sub) ##compute distance
+        
+        if dist < min:
+            min = dist
+            min_index = i
+            
     return min_index
 
 """
@@ -131,17 +150,13 @@ def prediction(input, codebook):
     print("PREDICTED ERASED INDEX IS ", erasedIndex)
     input[erasedIndex:len(input):3] = 0
     
-    c_0 = codebook[0]
-    c_1 = codebook[1]
-    code_length = len(c_0)
+    code_length = len(codebook[0])
     
     for i in range(0,input.size,code_length):
         sub_arr = input[i:i+code_length]
         
-        if np.dot(sub_arr,c_0) >= np.dot(sub_arr,c_1):
-            input[i:i+code_length] = c_0
-        else:
-            input[i:i+code_length] = c_1
+        predicted_index = codeword_prediction(sub_arr,codebook)
+        input[i:i+code_length] = codebook[predicted_index]
             
     return input
     
@@ -154,6 +169,7 @@ def decode_after_prediction(input,codebook):
     code_length = len(codebook[0])
     outer_step = 8*code_length
     inner_step = code_length
+    
     for i in range(0,input.size,outer_step):
         bits = []
         arr = input[i:i+outer_step]
@@ -164,4 +180,5 @@ def decode_after_prediction(input,codebook):
             
     return str(bytearray(output),'utf-8')
 
-        
+
+main()
