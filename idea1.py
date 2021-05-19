@@ -9,11 +9,18 @@ import numpy as np
 
 
 def main():
+    code_length = 90
+    c_0 = [1 for x in range(code_length)]
+    c_1 = [-1 for x in range(code_length)]
+    
+    codebook = {0:c_0, 1:c_1}
+    
     input= 'asda@¦#°#@°@§#@#§hfasugvbvavàé¨é'
-    encoded = encode(input)
+    
+    encoded = encode(input,codebook)
     encoded_loss = channel(encoded)
-    pred = prediction(encoded_loss)
-    decoded = decode_after_prediction(pred)
+    pred = prediction(encoded_loss,codebook)
+    decoded = decode_after_prediction(pred,codebook)
     print(decoded)
     print(decoded==input)
     
@@ -23,6 +30,7 @@ Noisy channel
 def channel(chanInput):
     chanInput = np.clip(chanInput,-1,1)
     erasedIndex = np.random.randint(3)
+    print("ERASED INDEX IS ", erasedIndex)
     chanInput[erasedIndex:len(chanInput):3] = 0
     return chanInput + np.sqrt(10)*np.random.randn(len(chanInput))
 
@@ -35,16 +43,10 @@ def easyChannel(chanInput):
     chanInput[erasedIndex:len(chanInput):3] = 0
     return chanInput
     
-"""
-Takes an input in [0,3] and returns the corresponding codeword
 
 """
-def create_code(i):
-    codebook = {0:[1,1,1,1,1,1],1:[-1,-1,-1,-1,-1,-1]}
-    return np.array(codebook[i])
-
-
-
+Return the array of bits given a number in [0,255]
+"""
 def getbits(num):
     bits = []
     for i in range(7,-1,-1):
@@ -52,27 +54,29 @@ def getbits(num):
     return bits
 
 """
-
+Given a string, transforms into into its binary form and replaces each bit by its corresponding codeword
 """
-def encode(input):
+def encode(input,codebook):
     arr = np.array(bytearray(input, 'utf-8')).astype('int')
     output = np.empty
     for i in range(len(arr)):
         num = arr[i]
         bits = getbits(num)
         for j in range(8):
-            output = np.hstack((output,create_code(bits[j])))
+            codeword = np.array(codebook[bits[j]])
+            output = np.hstack((output,codeword))
         
     #remove empty in the beginning
     return output[1:]
 
 
+"""
+GIven a codeword, returns whether it was H=0  or H=1
+"""
 def decode_from_codeword(arr):
     
-    if(len(arr) != 6):
-        raise ValueError("wrong length, should be 6")
     
-    for j in len(arr):
+    for j in range(len(arr)):
         if arr[j] == 1:
             return 0
         elif arr[j] == -1:
@@ -81,6 +85,9 @@ def decode_from_codeword(arr):
     raise ValueError("array isn't a valid codeword")
     
 
+"""
+Given an array of 8 bits, compute the corresponding byte
+"""
 def get_byte_from_arr(arr):
     if(len(arr) != 8):
         raise ValueError("wrong length,should be 8")
@@ -92,7 +99,10 @@ def get_byte_from_arr(arr):
     
     return byte
                      
-
+"""
+predict the erased index 
+algo: argmin_{j}{sum over |Yi| where i is part of the group (Z/3Z) + j }
+"""
 
 def predict_erased(input):
     input = np.absolute(input)
@@ -108,25 +118,30 @@ def predict_erased(input):
     return min_index
 
 """
-This function takes a noisy real-valued 1D np.array of size (8*6)k 
-It assumes that a third of the coordinates were erased and that there's Gaussian Noise of mean 0 and variance 10
+This function takes a noisy real-valued 1D np.array of size code_length*k, k positive integer
+It assumes that a third of the coordinates were erased and that there's Gaussian Noise of mean 0 and variance 10.
+
+It first predicts the erased index and puts every such erased coordinate at 0.
+
+It then does minimum-distance decoding for sub_array of size code_length and replaces it by the found codeword
 """ 
-def prediction(input):
+def prediction(input, codebook):
     
     erasedIndex = predict_erased(input)
+    print("PREDICTED ERASED INDEX IS ", erasedIndex)
     input[erasedIndex:len(input):3] = 0
     
-    c_0 = np.array([1,1,1,1,1,1])
-    c_1 = np.array([-1,-1,-1,-1,-1,-1])
-    length = len(c_0)
+    c_0 = codebook[0]
+    c_1 = codebook[1]
+    code_length = len(c_0)
     
-    for i in range(0,input.size,length):
-        sub_arr = input[i:i+length]
+    for i in range(0,input.size,code_length):
+        sub_arr = input[i:i+code_length]
         
         if np.dot(sub_arr,c_0) >= np.dot(sub_arr,c_1):
-            input[i:i+length] = c_0
+            input[i:i+code_length] = c_0
         else:
-            input[i:i+length] = c_1
+            input[i:i+code_length] = c_1
             
     return input
     
@@ -134,15 +149,16 @@ def prediction(input):
 This function takes a 1D np.array of size (8*6)k and returns the string.
 It assumes that input is {-1,1}^((8*6)k) with a third of the values being zero
 """
-def decode_after_prediction(input):
+def decode_after_prediction(input,codebook):
     output = []
-    outer_step = 8*6
-    inner_step = 6
+    code_length = len(codebook[0])
+    outer_step = 8*code_length
+    inner_step = code_length
     for i in range(0,input.size,outer_step):
         bits = []
         arr = input[i:i+outer_step]
         for j in range(0,arr.size,inner_step):
-            bits.append(decode_from_codeword(arr[j:j+inner_step], inner_step))
+            bits.append(decode_from_codeword(arr[j:j+inner_step]))
             
         output.append(get_byte_from_arr(bits))
             
