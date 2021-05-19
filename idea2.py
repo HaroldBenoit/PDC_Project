@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 """
+Created on Wed May 19 22:38:45 2021
+
+@author: Harold
+"""
+"""
 Created on Wed May 19 10:12:11 2021
 
 @author: Harold
@@ -9,21 +14,56 @@ import numpy as np
 
 
 def main():
-    code_length = 90
+    code_length = 300
+    # k is the number of bits sent per codeword, is a power of 2
+    k=1
+    
+    # here we define the coodebook. The cardinality of the codebook is k.
+    codebook = create_codebook(code_length)
+    
+    ## here we define the decoding function specific to our codebook
+    decoding_function = decode_codebook
+    
+    ## defining the input text
+    input= '¦@@@@#°§¬|¢¢9+"*ç%&/()'
+    
+    ## This part is the encoding->channel->prediction->decoding loop
+    
+    ## One should be able to define k, codebook and decoding_function without changing
+    ## the code below. It's modular baby
+    
+    encoded = encode(input,codebook,k)
+    encoded_loss = channel(encoded)
+    pred = prediction(encoded_loss,codebook)
+    
+    decoded = decode_after_prediction(pred,codebook,k,decoding_function)
+    print(decoded)
+    print(decoded==input)
+    
+    
+    
+def create_codebook(code_length):
     c_0 = [1 for x in range(code_length)]
     c_1 = [-1 for x in range(code_length)]
     
     codebook = {0:c_0, 1:c_1}
     
-    input= '¦@@@@#°§¬|¢¢9+"*ç%&/()'
+    return codebook
+
+
+"""
+Given a codeword, returns the corresponding mapping
+"""
+def decode_codebook(arr):
+    for j in range(len(arr)):
+        if arr[j] == 1:
+            return 0
+        elif arr[j] == -1:
+            return 1
     
-    encoded = encode(input,codebook)
-    encoded_loss = channel(encoded)
-    pred = prediction(encoded_loss,codebook)
-    decoded = decode_after_prediction(pred,codebook)
-    print(decoded)
-    print(decoded==input)
-    
+    raise ValueError("array isn't a valid codeword")
+        
+
 """
 Noisy channel
 """    
@@ -45,24 +85,25 @@ def easyChannel(chanInput):
     
 
 """
-Return the array of bits given a number in [0,255]
+Return the array of tuples of bits of size k given a number in [0,255]
 """
-def getbits(num):
+def getbits(num,k):
     bits = []
-    for i in range(7,-1,-1):
-        bits.append((num >> i)&1)
+    mask = 255 >> (8-k)
+    for i in range(8-k,-1,-k):
+        bits.append((num >> i)&mask)
     return bits
 
 """
 Given a string, transforms into into its binary form and replaces each bit by its corresponding codeword
 """
-def encode(input,codebook):
+def encode(input,codebook,k):
     arr = np.array(bytearray(input, 'utf-8')).astype('int')
     output = np.empty
     for i in range(len(arr)):
         num = arr[i]
-        bits = getbits(num)
-        for j in range(8):
+        bits = getbits(num,k)
+        for j in range(8//k):
             codeword = np.array(codebook[bits[j]])
             output = np.hstack((output,codeword))
         
@@ -70,34 +111,20 @@ def encode(input,codebook):
     return output[1:]
 
 
-"""
-GIven a codeword, returns whether it was H=0  or H=1
-"""
-def decode_from_codeword(arr):
-    
-    
-    for j in range(len(arr)):
-        if arr[j] == 1:
-            return 0
-        elif arr[j] == -1:
-            return 1
-    
-    raise ValueError("array isn't a valid codeword")
-    
+
 
 """
-Given an array of 8 bits, compute the corresponding byte
+Given an array of tuples of k bits, compute the corresponding byte
 """
-def get_byte_from_arr(arr):
-    if(len(arr) != 8):
-        raise ValueError("wrong length,should be 8")
-        
-    byte = 0
+def get_byte_from_arr(arr,k):
     
-    for i in range(8):
-        byte += arr[i]*(2**(8-(i+1)))
+    string = "{0:0" +str(k)+"b}"
+    buff = ''
     
-    return byte
+    for i in range(len(arr)):
+        buff = buff + string.format(arr[i])
+    
+    return int(buff,2)
                      
 """
 predict the erased index 
@@ -161,22 +188,21 @@ def prediction(input, codebook):
     return input
     
 """
-This function takes a 1D np.array of size (8*6)k and returns the string.
-It assumes that input is {-1,1}^((8*6)k) with a third of the values being zero
+This function takes a 1D np.array representing the encoded binary string and returns the string. 
 """
-def decode_after_prediction(input,codebook):
+def decode_after_prediction(input,codebook,k,decoding_function):
     output = []
     code_length = len(codebook[0])
     outer_step = 8*code_length
-    inner_step = code_length
+    inner_step = k*code_length
     
     for i in range(0,input.size,outer_step):
         bits = []
         arr = input[i:i+outer_step]
         for j in range(0,arr.size,inner_step):
-            bits.append(decode_from_codeword(arr[j:j+inner_step]))
+            bits.append(decoding_function(arr[j:j+inner_step]))
             
-        output.append(get_byte_from_arr(bits))
+        output.append(get_byte_from_arr(bits,k))
             
     return str(bytearray(output),'utf-8')
 
