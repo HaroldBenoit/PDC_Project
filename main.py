@@ -14,7 +14,7 @@ import numpy as np
 
 
 def main():
-    code_length = 100
+    code_length = 150
     # k is the number of bits sent per codeword, is a power of 2
     k=1
     
@@ -151,8 +151,18 @@ ouputs on the majority (i.e. there are more coordinates < 0 -> we output 1 else 
 """
 
 def codeword_prediction(arr,codebook):
+    count0 = 0
+    count1 = 0
+    
+    for i in range(arr.size):
+        num = arr[i]
+        if num < 0:
+            count1 += 1
+        elif num > 0:
+            count0 += 1
+    
             
-    return 0 if np.sum(arr) >= 0 else 1
+    return 0 if count0 >= count1 else 1
 
 """
 This function takes a noisy real-valued 1D np.array of size code_length*k, k positive integer
