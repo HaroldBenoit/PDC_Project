@@ -1,28 +1,76 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue May 18 11:02:04 2021
+Created on Wed May 19 22:38:45 2021
 
 @author: Harold
 """
+"""
+Created on Wed May 19 10:12:11 2021
+
+@author: Harold
+"""
+
 import numpy as np
 
 
-
-
 def main():
-    input= 'asda@¦#°#@°@§#@#§hfasugvbvavàé¨é'
-    encoded = encode(input)
-    encoded_loss = easyChannel(encoded)
-    decoded = decode(encoded_loss)
+    code_length = 100
+    # k is the number of bits sent per codeword, is a power of 2
+    k=1
+    
+    # here we define the coodebook. The cardinality of the codebook is k.
+    codebook = create_codebook(code_length)
+    
+    ## here we define the decoding function specific to our codebook
+    decoding_function = decode_codebook
+    
+    ## defining the input text
+    input= '¦@@@@#°§¬|¢¢9+"*ç%&/()'
+    
+    ## This part is the encoding->channel->prediction->decoding loop
+    
+    ## One should be able to define k, codebook and decoding_function without changing
+    ## the code below. It's modular baby
+    
+    encoded = encode(input,codebook,k)
+    encoded_loss = channel(encoded)
+    pred = prediction(encoded_loss,codebook)
+    
+    decoded = decode_after_prediction(pred,codebook,k,decoding_function)
     print(decoded)
     print(decoded==input)
     
+    
+    
+def create_codebook(code_length):
+    c_0 = [1 for x in range(code_length)]
+    c_1 = [-1 for x in range(code_length)]
+    
+    codebook = {0:c_0, 1:c_1}
+    
+    return codebook
+
+
+"""
+Given a codeword, returns the corresponding mapping
+"""
+def decode_codebook(arr):
+    for j in range(len(arr)):
+        if arr[j] == 1:
+            return 0
+        elif arr[j] == -1:
+            return 1
+    
+    raise ValueError("array isn't a valid codeword")
+        
+
 """
 Noisy channel
 """    
 def channel(chanInput):
     chanInput = np.clip(chanInput,-1,1)
     erasedIndex = np.random.randint(3)
+    print("ERASED INDEX IS ", erasedIndex)
     chanInput[erasedIndex:len(chanInput):3] = 0
     return chanInput + np.sqrt(10)*np.random.randn(len(chanInput))
 
@@ -35,75 +83,119 @@ def easyChannel(chanInput):
     chanInput[erasedIndex:len(chanInput):3] = 0
     return chanInput
     
-"""
-Takes an input in [0,255] and creates the corresponding 2 times repeated codeword
-
-Example : create_code(1) gives c_1+c_1 where c_1 = (0,1,0,..0) with 255 zeros and only one 1.
-"""
-def create_code(i):
-    arr = np.zeros(256)
-    arr[i] = 1
-    return np.hstack((arr,arr))
 
 """
-Takes a utf-8 string of length k and outputs the corresponding encoding of length 2k*256 
-
-Example: encode('ab') = c_a+c_a+c_b+c_b 
+Return the array of tuples of bits of size k given a number in [0,255]
 """
-def encode(input):
+def getbits(num,k):
+    bits = []
+    mask = 255 >> (8-k)
+    for i in range(8-k,-1,-k):
+        bits.append((num >> i)&mask)
+    return bits
+
+"""
+Given a string, transforms into into its binary form and replaces each bit by its corresponding codeword
+"""
+def encode(input,codebook,k):
     arr = np.array(bytearray(input, 'utf-8')).astype('int')
     output = np.empty
     for i in range(len(arr)):
-        output = np.hstack((output,create_code(arr[i])))
+        num = arr[i]
+        bits = getbits(num,k)
+        for j in range(8//k):
+            codeword = np.array(codebook[bits[j]])
+            output = np.hstack((output,codeword))
         
-        #remove empty in the beginning
+    #remove empty in the beginning
     return output[1:]
 
+
+
+
 """
-This function takes a 1D np.array of size 2k*256 such that the array represents
-2 times repeated codewords of length 256.  
+Given an array of tuples of k bits, compute the corresponding byte
 """
-def decode(input):
-    output = []
+def get_byte_from_arr(arr,k):
     
-    for i in range(0,input.size,512):
-        value=np.nonzero(input[i:i+512])[0][0]
+    string = "{0:0" +str(k)+"b}"
+    buff = ''
+    
+    for i in range(len(arr)):
+        buff = buff + string.format(arr[i])
+    
+    return int(buff,2)
+                     
+"""
+predict the erased index 
+algo: argmin_{j}{sum over |Yi^2 where i is part of the group (Z/3Z) + j }
+"""
+
+def predict_erased(input):
+    input = input*input
+    min = np.inf
+    min_index= 0
+    
+    for i in range(3):
+        sum = np.sum(input[i:len(input):3])
+        if sum < min:
+            min = sum
+            min_index = i
+
+    return min_index
+
+"""
+This function counts the number of coordinates above zero and below zero and
+ouputs on the majority (i.e. there are more coordinates < 0 -> we output 1 else 0)
+
+"""
+
+def codeword_prediction(arr,codebook):
+            
+    return 0 if np.sum(arr) >= 0 else 1
+
+"""
+This function takes a noisy real-valued 1D np.array of size code_length*k, k positive integer
+It assumes that a third of the coordinates were erased and that there's Gaussian Noise of mean 0 and variance 10.
+
+It first predicts the erased index and puts every such erased coordinate at 0.
+
+It then does minimum-distance decoding for sub_array of size code_length and replaces it by the found codeword
+""" 
+def prediction(input, codebook):
+    
+    erasedIndex = predict_erased(input)
+    print("PREDICTED ERASED INDEX IS ", erasedIndex)
+    input[erasedIndex:len(input):3] = 0
+    
+    code_length = len(codebook[0])
+    
+    for i in range(0,input.size,code_length):
+        sub_arr = input[i:i+code_length]
         
-        if value < 256:
-            output.append(value)
-        else:
-            output.append(value-256)
+        predicted_index = codeword_prediction(sub_arr,codebook)
+        input[i:i+code_length] = codebook[predicted_index]
+            
+    return input
+    
+"""
+This function takes a 1D np.array representing the encoded binary string and returns the string. 
+"""
+def decode_after_prediction(input,codebook,k,decoding_function):
+    output = []
+    code_length = len(codebook[0])
+    outer_step = 8*code_length
+    inner_step = k*code_length
+    
+    for i in range(0,input.size,outer_step):
+        bits = []
+        arr = input[i:i+outer_step]
+        for j in range(0,arr.size,inner_step):
+            bits.append(decoding_function(arr[j:j+inner_step]))
+            
+        output.append(get_byte_from_arr(bits,k))
             
     return str(bytearray(output),'utf-8')
-        
 
-"""
-WHAT IS BELOW IS NOT INTERESTING BUT KEPT JUST IN CASE
-"""
-
-
-def string2real(input):
-    print('\n@@@@@@@@@@@@@@@@@@@@@@@ENCODING@@@@@@@@@@@@@@@@@@@@@@@\n')
-    
-    print('starting string :',input,'\n')
-    
-    arr = np.array(bytearray(input, 'utf-8')).astype('float64')
-    print(arr)
-    arr = (arr -128)
-    print(arr)
-    arr = arr/255
-    print(arr)
-    return arr
-
-    
-
-def real2string(arr):
-    print('\n@@@@@@@@@@@@@@@@@@@@@@@DECODING@@@@@@@@@@@@@@@@@@@@@@@\n')
-    arr = ((arr*255) + 128).astype('byte')
-    print(arr)
-    arr = bytearray(arr)
-    print(arr,'\n')
-    string= str(arr,'utf-8')
-    print('result string:',string)
 
 main()

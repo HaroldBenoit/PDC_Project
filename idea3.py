@@ -1,28 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed May 19 22:38:45 2021
+Created on Thu May 20 13:01:14 2021
 
 @author: Harold
 """
-"""
-Created on Wed May 19 10:12:11 2021
-
-@author: Harold
-"""
-
 import numpy as np
 
 
 def main():
     code_length = 300
     # k is the number of bits sent per codeword, is a power of 2
-    k=1
+    k=8
     
     # here we define the coodebook. The cardinality of the codebook is k.
-    codebook = create_codebook(code_length)
+    codebook = create_8byte_codebook()
     
     ## here we define the decoding function specific to our codebook
-    decoding_function = decode_codebook
+    decoding_function = decode_8byte_codebook
     
     ## defining the input text
     input= '¦@@@@#°§¬|¢¢9+"*ç%&/()'
@@ -40,6 +34,27 @@ def main():
     print(decoded)
     print(decoded==input)
     
+
+
+def create_8byte_codebook():
+    codebook = {}
+    for i in range(256):
+        arr = np.zeros(512).astype('int')
+        if i % 2 == 0:
+            arr[2*i] = 1
+            arr[2*i + 1] = 1
+        else:
+            arr[2*i] = -1
+            arr[2*i + 1] = -1
+        
+        codebook[i] = arr.astype('int')
+        
+    return codebook
+        
+def decode_8byte_codebook(arr):
+    indexes = np.nonzero(arr)
+    
+    return indexes[0][0]//2
     
     
 def create_codebook(code_length):
